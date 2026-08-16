@@ -17,8 +17,8 @@ Essential Support for Gravity Forms connects a Gravity Form to your [Essential S
 **How it works**
 
 * **Verify-first.** A submission sends a confirmation email. The ticket is only created after the customer confirms, so unverified junk never reaches your agents.
-* **Field mapping.** Map your form's fields to the ticket's email, subject, message, and (optionally) the customer's name.
-* **Ticket type.** Pick a ticket type per feed. The list is pulled live from your workspace, so it always matches your real types.
+* **Zero-config field mapping.** The add-on auto-detects your email, subject, message, ticket-type, and file-upload fields. You can override any of them, but you usually don't need to.
+* **Customer-chosen ticket type.** Add a Drop Down (or Radio) field and the add-on fills it with your workspace's live ticket types, so customers pick the type themselves and it always matches your real types.
 * **Attachments (optional).** If your workspace has Images & Files turned on, map a File Upload field and the files attach to the ticket once the customer verifies their email.
 
 This add-on works with any Essential Support workspace — no lock-in to a particular host app.
