@@ -42,6 +42,13 @@ define( 'ESGF_URL', plugin_dir_url( __FILE__ ) );
 define( 'ESGF_SLUG', 'essential-support-gravityforms' );
 define( 'ESGF_BASENAME', plugin_basename( __FILE__ ) );
 
+/* wporg-strip:start — GitHub self-updater (removed from the WordPress.org build) */
+require_once ESGF_PATH . 'includes/class-github-updater.php';
+// Wire in the GitHub self-updater so releases show up on Dashboard → Updates. Stripped
+// from the WordPress.org build (which updates through .org); needs a PUBLIC repo to fetch.
+( new ESGF_GitHub_Updater( __FILE__, ESGF_VERSION ) )->init();
+/* wporg-strip:end */
+
 // The webhook receiver is a REST route that must answer regardless of whether a Gravity
 // Forms admin page is loaded, so it's registered independently of the GF feed framework.
 require_once ESGF_PATH . 'includes/class-esgf-webhook.php';

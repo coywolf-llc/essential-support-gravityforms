@@ -1,0 +1,217 @@
+name: Release on PR merge
+
+# After a PR merges to main:
+# 1. If the PR didn't change the plugin version itself, bump the patch version
+#    (header Version + ESGF_VERSION define + readme Stable tag + changelog) and
+#    push that bump back to main.
+# 2. Build a plugin zip and publish it as a GitHub Release tagged "vX.Y.Z" — the
+#    zip the in-plugin GitHub updater downloads.
+# 3. Build the WordPress.org variant (self-updater + Update URI stripped) and
+#    attach it as an artifact for the .org submission / Plugin Check.
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+env:
+  # Run bundled JS actions on Node 24 instead of the deprecated Node 20.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  SLUG: essential-support-gravityforms
+  MAIN: essential-support-gravityforms.php
+
+jobs:
+  release:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Decide whether to bump or release at the current version
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # The plugin-header "Version:" line in the main file is the source of truth.
+          CURR=$(grep -oE "^[[:space:]]*\*[[:space:]]*Version:[[:space:]]*[0-9]+\.[0-9]+\.[0-9]+" \
+            "$MAIN" | grep -oE "[0-9]+\.[0-9]+\.[0-9]+" | head -1)
+          echo "curr=$CURR" >> "$GITHUB_OUTPUT"
+          if gh release view "v$CURR" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "Release v$CURR exists; auto-bumping the patch."
+            echo "needs_bump=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No release for v$CURR yet; releasing at the current version."
+            echo "needs_bump=false" >> "$GITHUB_OUTPUT"
+            echo "release_version=$CURR" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Compute next patch version
+        if: steps.check.outputs.needs_bump == 'true'
+        id: ver
+        env:
+          CURR: ${{ steps.check.outputs.curr }}
+        run: |
+          set -euo pipefail
+          IFS='.' read -r MAJ MIN PAT <<< "$CURR"
+          echo "new=$MAJ.$MIN.$((PAT + 1))" >> "$GITHUB_OUTPUT"
+
+      - name: Apply bump to files
+        if: steps.check.outputs.needs_bump == 'true'
+        env:
+          CURR: ${{ steps.check.outputs.curr }}
+          NEW:  ${{ steps.ver.outputs.new }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          # Header Version + the ESGF_VERSION define both live in the main file.
+          sed -i -E "s|(Version:[[:space:]]+)${CURR//./\\.}\b|\1${NEW}|" "$MAIN"
+          sed -i -E "s|(ESGF_VERSION', ')${CURR//./\\.}(')|\1${NEW}\2|" "$MAIN"
+          # Stable tag = latest released version pointer; match ANY version, set to NEW.
+          sed -i -E "s|(Stable tag:[[:space:]]+)[0-9]+(\.[0-9]+)*|\1${NEW}|" readme.txt
+          # Prepend a changelog entry to both readmes (readme.md is the source; readme.txt
+          # mirrors it in the WordPress format .org + the in-WP updater consume).
+          python3 - <<'PY'
+          import os, re
+          new = os.environ["NEW"]
+          title = os.environ["PR_TITLE"].replace("\r", " ").strip() or "Maintenance update"
+          num = os.environ["PR_NUMBER"]
+          targets = [
+              {"path": "readme.txt", "anchor": r"(== Changelog ==\n)", "entry": f"\n= {new} =\n* {title} (#{num}).\n", "required": True},
+              {"path": "readme.md",  "anchor": r"(## Changelog\n)",    "entry": f"\n### {new}\n- {title} (#{num}).\n", "required": False},
+          ]
+          for t in targets:
+              if not os.path.exists(t["path"]):
+                  if t["required"]:
+                      raise SystemExit(f"Missing required file: {t['path']}")
+                  continue
+              with open(t["path"], encoding="utf-8") as f:
+                  content = f.read()
+              content, n = re.subn(t["anchor"], r"\1" + t["entry"], content, count=1)
+              if n == 0:
+                  raise SystemExit(f"Could not find changelog anchor in {t['path']}")
+              with open(t["path"], "w", encoding="utf-8") as f:
+                  f.write(content)
+          PY
+
+      - name: Commit and push bump
+        if: steps.check.outputs.needs_bump == 'true'
+        id: commit
+        env:
+          NEW: ${{ steps.ver.outputs.new }}
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$MAIN" readme.txt readme.md
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore(release): bump version to ${NEW} [skip ci]"
+            git push origin main
+          fi
+          echo "release_version=${NEW}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve final release version
+        id: final
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.check.outputs.needs_bump }}" = "true" ]; then
+            V="${{ steps.commit.outputs.release_version }}"
+          else
+            V="${{ steps.check.outputs.release_version }}"
+          fi
+          echo "version=${V}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${V}" >> "$GITHUB_OUTPUT"
+
+      - name: Skip if tag already exists
+        id: tagcheck
+        env:
+          TAG: ${{ steps.final.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if git rev-parse "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build plugin zip
+        if: steps.tagcheck.outputs.exists == 'false'
+        run: |
+          set -euo pipefail
+          BUILD_DIR="$RUNNER_TEMP/build"
+          STAGE="$BUILD_DIR/$SLUG"
+          rm -rf "$BUILD_DIR"; mkdir -p "$STAGE"
+          rsync -a --delete \
+            --exclude '.git' --exclude '.github' --exclude '.gitignore' \
+            --exclude '.wordpress-org' --exclude 'build' --exclude '*.zip' \
+            --exclude 'tests' --exclude 'bin' --exclude 'node_modules' \
+            ./ "$STAGE/"
+          ( cd "$BUILD_DIR" && zip -r -q "$GITHUB_WORKSPACE/$SLUG.zip" "$SLUG" )
+          ls -l "$SLUG.zip"
+
+      - name: Extract release notes from readme.txt
+        if: steps.tagcheck.outputs.exists == 'false'
+        env:
+          VERSION: ${{ steps.final.outputs.version }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' > release-notes.md
+          import os, re
+          version = os.environ["VERSION"]
+          with open("readme.txt", encoding="utf-8") as f:
+              content = f.read()
+          m = re.search(r"=\s*" + re.escape(version) + r"\s*=\n(.*?)(?=\n=\s*\d|\Z)", content, re.DOTALL)
+          print(m.group(1).strip() if m else "Release " + version + ".")
+          PY
+
+      - name: Create GitHub release
+        if: steps.tagcheck.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG:      ${{ steps.final.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes-file release-notes.md \
+            --target "$(git rev-parse HEAD)" \
+            "${SLUG}.zip"
+
+      # ----------------------------------------------------------------------
+      # WordPress.org variant — the .org directory forbids self-updaters that
+      # fetch code from outside .org, so ship a second build with the GitHub
+      # updater + Update URI stripped (build-wporg.sh). Produced as an artifact
+      # for the initial .org submission / local Plugin Check runs. The SVN
+      # deploy is intentionally NOT automatic (WP.org guideline #14) — run the
+      # manual deploy-wporg.yml workflow to ship to .org.
+      # ----------------------------------------------------------------------
+      - name: Build WordPress.org variant
+        if: steps.tagcheck.outputs.exists == 'false'
+        run: |
+          set -euo pipefail
+          WPORG_SRC="$RUNNER_TEMP/wporg-src/$SLUG"
+          rm -rf "$RUNNER_TEMP/wporg-src"; mkdir -p "$WPORG_SRC"
+          cp -a "$RUNNER_TEMP/build/$SLUG"/. "$WPORG_SRC/"
+          bash .github/build-wporg.sh "$WPORG_SRC" "$RUNNER_TEMP/wporg"
+          ( cd "$RUNNER_TEMP/wporg" && zip -r -q "$GITHUB_WORKSPACE/$SLUG-wporg.zip" "$SLUG" )
+          ls -l "$SLUG-wporg.zip"
+
+      - name: Upload WordPress.org zip (submission / Plugin Check)
+        if: steps.tagcheck.outputs.exists == 'false'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.final.outputs.tag }}-wporg
+          path: essential-support-gravityforms-wporg.zip
+          if-no-files-found: error

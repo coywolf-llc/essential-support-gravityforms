@@ -35,5 +35,14 @@
 		</properties>
 	</rule>
 
+	<!--
+	The GitHub self-updater keeps the generic filename class-github-updater.php
+	(build-wporg.sh strips it by that exact path across all Coywolf plugins), so the
+	class-name → filename sniff is waived for that one file only.
+	-->
+	<rule ref="WordPress.Files.FileName.InvalidClassFileName">
+		<exclude-pattern>*/includes/class-github-updater.php</exclude-pattern>
+	</rule>
+
 	<config name="minimum_wp_version" value="6.3"/>
 </ruleset>
