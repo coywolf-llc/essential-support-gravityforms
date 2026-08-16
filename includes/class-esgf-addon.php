@@ -151,6 +151,18 @@ class ESGF_AddOn extends GFFeedAddOn {
 						'class'      => 'medium',
 						'tooltip'    => esc_html__( 'Copy this from the webhook you created in Essential Support. Only needed for attachments.', 'essential-support-gravityforms' ),
 					),
+					array(
+						'name'    => 'cleanup',
+						'label'   => esc_html__( 'Clean up copied files', 'essential-support-gravityforms' ),
+						'type'    => 'checkbox',
+						'choices' => array(
+							array(
+								'name'    => 'delete_after_copy',
+								'label'   => esc_html__( 'Delete each uploaded file from this site once Essential Support confirms it stored a copy', 'essential-support-gravityforms' ),
+								'tooltip' => esc_html__( 'Reclaims disk space. The Gravity Forms entry keeps its record, but the file itself is removed from your server after it is safely copied to Essential Support. Leave off to keep a local copy of every uploaded file.', 'essential-support-gravityforms' ),
+							),
+						),
+					),
 				),
 			),
 		);
@@ -420,12 +432,25 @@ class ESGF_AddOn extends GFFeedAddOn {
 		$message = $this->mapped_value( $form, $entry, $feed, 'field_message', 'message' );
 		$name    = $this->mapped_value( $form, $entry, $feed, 'field_name', 'name' );
 
+		// Resolve the file-upload field (mapped, else auto-detected) and count how many
+		// files the customer uploaded. Sending the count lets Essential Support show
+		// "Attaching…" placeholders the instant the verified ticket opens — before the
+		// ticket.created webhook finishes copying the files in.
+		$files_field = rgars( $feed, 'meta/field_files' );
+		if ( '' === (string) $files_field ) {
+			$files_field = $this->guess_field_id( $form, 'files' );
+		}
+		$file_urls = $this->entry_file_urls( $entry, $files_field );
+
 		$payload = array(
 			'email'     => $email,
 			'subject'   => ( '' !== $subject ) ? $subject : rgar( $form, 'title' ),
 			'message'   => $message,
 			'sourceRef' => (string) rgar( $entry, 'id' ),
 		);
+		if ( ! empty( $file_urls ) ) {
+			$payload['expectedAttachments'] = count( $file_urls );
+		}
 		// Type precedence: the customer's in-form choice (mapped type field) wins; the
 		// feed's default type is the fallback. ES resolves either by name or id.
 		$type       = '';
@@ -472,13 +497,9 @@ class ESGF_AddOn extends GFFeedAddOn {
 			return;
 		}
 
-		// Remember which file field (if any) holds attachments so the ticket.created
+		// Remember which file field (if any) held attachments so the ticket.created
 		// webhook can upload them once the customer verifies and the ticket exists.
-		$files_field = rgars( $feed, 'meta/field_files' );
-		if ( '' === (string) $files_field ) {
-			$files_field = $this->guess_field_id( $form, 'files' );
-		}
-		if ( ! empty( $files_field ) && '' !== (string) rgar( $entry, $files_field ) ) {
+		if ( ! empty( $files_field ) && ! empty( $file_urls ) ) {
 			gform_update_meta( rgar( $entry, 'id' ), 'esgf_files_field', $files_field );
 		}
 
@@ -509,6 +530,30 @@ class ESGF_AddOn extends GFFeedAddOn {
 			return '';
 		}
 		return trim( (string) $this->get_field_value( $form, $entry, $field_id ) );
+	}
+
+	/**
+	 * The list of uploaded-file URLs an entry holds for a file-upload field. A single-file
+	 * field stores one URL string; a multi-file field stores a JSON array. Mirrors
+	 * ESGF_Webhook::field_file_urls (kept separate so that stays private to the receiver).
+	 *
+	 * @param array  $entry    The entry.
+	 * @param string $field_id File-upload field id, or ''.
+	 * @return array
+	 */
+	private function entry_file_urls( $entry, $field_id ) {
+		if ( '' === (string) $field_id ) {
+			return array();
+		}
+		$value = rgar( $entry, (string) $field_id );
+		if ( empty( $value ) ) {
+			return array();
+		}
+		$decoded = json_decode( (string) $value, true );
+		if ( is_array( $decoded ) ) {
+			return array_values( array_filter( array_map( 'strval', $decoded ) ) );
+		}
+		return array( (string) $value );
 	}
 
 	/**
