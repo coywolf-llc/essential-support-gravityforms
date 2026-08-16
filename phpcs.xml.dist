@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+<ruleset name="Essential Support for Gravity Forms">
+	<description>Coding standards for the Essential Support Gravity Forms add-on.</description>
+
+	<file>.</file>
+	<arg name="extensions" value="php"/>
+	<arg value="ps"/>
+	<arg name="colors"/>
+
+	<rule ref="WordPress">
+		<!--
+		Gravity Forms' Feed Add-On framework REQUIRES these exact underscore-prefixed
+		property names ($_version, $_slug, $_title, …) on subclasses — they are inherited
+		framework convention, not ours to rename.
+		-->
+		<exclude name="PSR2.Classes.PropertyDeclaration.Underscore"/>
+	</rule>
+
+	<!-- Prefixes this plugin owns, for the global-namespace-pollution sniff. -->
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+		<properties>
+			<property name="prefixes" type="array">
+				<element value="esgf"/>
+				<element value="ESGF"/>
+			</property>
+		</properties>
+	</rule>
+
+	<!-- Text domain, for the i18n sniff. -->
+	<rule ref="WordPress.WP.I18n">
+		<properties>
+			<property name="text_domain" type="array">
+				<element value="essential-support-gravityforms"/>
+			</property>
+		</properties>
+	</rule>
+
+	<config name="minimum_wp_version" value="6.3"/>
+</ruleset>
