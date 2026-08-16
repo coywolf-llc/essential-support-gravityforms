@@ -13,7 +13,7 @@ When someone submits the form, they get an email asking them to confirm their re
 - **Verify-first.** A submission sends a confirmation email; the ticket is only created after the customer confirms, so unverified junk never reaches your agents.
 - **Zero-config field mapping.** The add-on auto-detects your email, subject, message, ticket-type, and file-upload fields. You can override any of them, but you usually don't need to.
 - **Customer-chosen ticket type.** Add a Drop Down (or Radio) field and the add-on fills it with your workspace's **live** ticket types, so customers pick the type themselves and it always matches your real types.
-- **Attachments (optional).** If your workspace has **Images & Files** enabled, files uploaded on the form attach to the ticket once the customer verifies their email.
+- **Attachments (optional).** If your workspace has **Images & Files** enabled, files uploaded on the form attach to the ticket once the customer verifies their email. The ticket shows an **"Attaching…"** placeholder for each incoming file the instant it opens, replaced by the file (or an image thumbnail) as it finishes copying — so customers see their attachments are on the way. You can also have the add-on **delete each file from your site** once Essential Support has stored a copy, to reclaim disk space.
 
 Works with **any** Essential Support workspace — no lock-in to a particular host app.
 
@@ -30,6 +30,7 @@ Works with **any** Essential Support workspace — no lock-in to a particular ho
 2. In Essential Support, add a **webhook** for the `ticket.created` event pointing at the callback URL shown on the plugin's settings screen.
 3. Paste that webhook's **signing secret** into the plugin settings.
 4. Add a **File Upload** field to your form. Files upload to the ticket after the customer confirms.
+5. *(Optional)* Under **File attachments**, tick **Clean up copied files** to delete each uploaded file from this site once Essential Support confirms it stored a copy. The Gravity Forms entry keeps its record; only the file on disk is removed. Leave it off to keep a local copy.
 
 ## FAQ
 

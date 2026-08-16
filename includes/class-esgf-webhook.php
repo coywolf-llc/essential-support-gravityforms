@@ -133,11 +133,16 @@ class ESGF_Webhook {
 			return true; // Not configured — can't upload; don't retry forever.
 		}
 
-		$urls    = self::field_file_urls( rgar( $entry, (string) $files_field ) );
-		$done    = gform_get_meta( $entry_id, 'esgf_uploaded' );
-		$done    = is_array( $done ) ? $done : array();
-		$all_ok  = true;
-		$uploads = wp_upload_dir();
+		$urls     = self::field_file_urls( rgar( $entry, (string) $files_field ) );
+		$done     = gform_get_meta( $entry_id, 'esgf_uploaded' );
+		$done     = is_array( $done ) ? $done : array();
+		$all_ok   = true;
+		$uploads  = wp_upload_dir();
+		$settings = esgf_settings();
+		// Optional: reclaim disk by deleting each file from this site once ES confirms it
+		// stored a copy. The GF entry keeps its record; only the bytes on disk go away.
+		$cleanup = ! empty( $settings['delete_after_copy'] );
+		$deleted = 0;
 
 		foreach ( $urls as $url ) {
 			if ( in_array( $url, $done, true ) ) {
@@ -156,10 +161,32 @@ class ESGF_Webhook {
 				$all_ok = false; // Leave it out of $done so a retry tries again.
 				continue;
 			}
-			$done[] = $url;
+			$done[] = $url; // Recorded BEFORE any delete, so a redelivery skips it (never re-reads a removed file).
+			if ( $cleanup ) {
+				wp_delete_file( $path );
+				++$deleted;
+			}
 		}
 
 		gform_update_meta( $entry_id, 'esgf_uploaded', $done );
+
+		if ( $deleted > 0 && is_callable( array( 'GFAPI', 'add_note' ) ) ) {
+			GFAPI::add_note(
+				$entry_id,
+				0,
+				'Essential Support',
+				sprintf(
+					/* translators: %d: number of files removed. */
+					_n(
+						'Removed %d uploaded file from this site after copying it to Essential Support.',
+						'Removed %d uploaded files from this site after copying them to Essential Support.',
+						$deleted,
+						'essential-support-gravityforms'
+					),
+					$deleted
+				)
+			);
+		}
 		return $all_ok;
 	}
 
