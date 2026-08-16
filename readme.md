@@ -52,5 +52,8 @@ No. The API key and webhook secret are stored on your server and used only in se
 
 ## Changelog
 
+### 1.0.1
+- Update readme to describe auto-detection and the customer ticket-type dropdown (#1).
+
 ### 1.0.0
 Initial release: verify-first ticket creation, zero-config field auto-detection, a live customer-facing ticket-type dropdown, and optional file attachments via the `ticket.created` webhook.

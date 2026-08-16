@@ -3,7 +3,7 @@
  * Plugin Name:       Essential Support for Gravity Forms
  * Plugin URI:        https://essential.support/integrations/gravity-forms/
  * Description:        Turn any Gravity Form into an Essential Support ticket form. Submissions open a verify-first support request (the customer confirms by email before anything is created), map your form fields to the ticket, auto-populate the ticket type, and — when your workspace has Images & Files enabled — attach uploaded files after the request is verified.
- * Version:           1.0.0
+ * Version:           1.0.1
  * Requires at least: 6.3
  * Requires PHP:      7.4
  * Author:            Coywolf
@@ -35,7 +35,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'ESGF_VERSION', '1.0.0' );
+define( 'ESGF_VERSION', '1.0.1' );
 define( 'ESGF_FILE', __FILE__ );
 define( 'ESGF_PATH', plugin_dir_path( __FILE__ ) );
 define( 'ESGF_URL', plugin_dir_url( __FILE__ ) );
