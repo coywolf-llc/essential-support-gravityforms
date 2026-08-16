@@ -53,6 +53,9 @@ No. The API key and webhook secret are stored on your server and used only in se
 
 ## Changelog
 
+### 1.0.2
+- Add "Attaching…" placeholders for incoming files and an optional clean-up-copied-files setting (#2).
+
 ### 1.0.1
 - Update readme to describe auto-detection and the customer ticket-type dropdown (#1).
 

@@ -4,7 +4,7 @@ Tags: gravity forms, support, help desk, tickets, contact form
 Requires at least: 6.3
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 1.0.1
+Stable tag: 1.0.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -57,6 +57,9 @@ Your workspace needs Images & Files enabled first. Until then the file mapping i
 No. The API key and webhook secret are stored on your server and used only in server-to-server calls.
 
 == Changelog ==
+
+= 1.0.2 =
+* Add "Attaching…" placeholders for incoming files and an optional clean-up-copied-files setting (#2).
 
 = 1.0.1 =
 * Update readme to describe auto-detection and the customer ticket-type dropdown (#1).
